@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MAX Voice Assistant</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: white;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 650px;
+            background: #1f2937;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            font-size: 40px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 30px;
+        }
+
+        .status-box {
+            background: #111827;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+
+        #status {
+            font-weight: bold;
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        button {
+            border: none;
+            padding: 13px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .start-button {
+            background: #22c55e;
+            color: white;
+        }
+
+        .stop-button {
+            background: #ef4444;
+            color: white;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        .commands {
+            margin-top: 35px;
+            text-align: left;
+            background: #111827;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .commands h3 {
+            margin-top: 0;
+        }
+
+        .commands p {
+            color: #d1d5db;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>MAX</h1>
+
+        <p class="subtitle">
+            Personal Voice Assistant
+        </p>
+
+        <div class="status-box">
+            Status:
+            <span id="status">Checking...</span>
+        </div>
+
+        <div class="buttons">
+
+            <button
+                class="start-button"
+                onclick="startAssistant()">
+                Start Assistant
+            </button>
+
+            <button
+                class="stop-button"
+                onclick="stopAssistant()">
+                Stop Assistant
+            </button>
+
+        </div>
+
+        <div class="commands">
+
+            <h3>Try saying</h3>
+
+            <p>🎙 MAX → What is the time?</p>
+            <p>🌤 MAX → Weather in Hyderabad</p>
+            <p>🎵 MAX → Play Believer</p>
+            <p>😂 MAX → Tell me a joke</p>
+            <p>🔎 MAX → Search Google for Python tutorials</p>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        function startAssistant() {
+
+            document.getElementById("status").innerText =
+                "Starting...";
+
+            fetch("/start-assistant")
+                .then(response => response.json())
+                .then(data => {
+
+                    document.getElementById("status").innerText =
+                        data.message;
+
+                })
+                .catch(() => {
+
+                    document.getElementById("status").innerText =
+                        "Unable to start MAX.";
+
+                });
+        }
+
+
+        function stopAssistant() {
+
+            document.getElementById("status").innerText =
+                "Stopping...";
+
+            fetch("/stop-assistant")
+                .then(response => response.json())
+                .then(data => {
+
+                    document.getElementById("status").innerText =
+                        data.message;
+
+                })
+                .catch(() => {
+
+                    document.getElementById("status").innerText =
+                        "Unable to stop MAX.";
+
+                });
+        }
+
+
+        function checkStatus() {
+
+            fetch("/status")
+                .then(response => response.json())
+                .then(data => {
+
+                    if (data.running) {
+
+                        document.getElementById("status").innerText =
+                            "MAX is running";
+
+                    } else {
+
+                        document.getElementById("status").innerText =
+                            "MAX is stopped";
+
+                    }
+
+                });
+        }
+
+
+        // Check MAX status every 3 seconds
+        setInterval(checkStatus, 10000);
+
+        // Check immediately when page opens
+        checkStatus();
+
+    </script>
+
+</body>
+
+</html>
