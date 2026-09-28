@@ -145,79 +145,218 @@
 
     <script>
 
-        function startAssistant() {
+    let recognition = null;
+    let assistantRunning = false;
+
+
+    // Speak MAX's response
+    function speak(text) {
+
+        if (!text) return;
+
+        window.speechSynthesis.cancel();
+
+        const speech = new SpeechSynthesisUtterance(text);
+
+        speech.lang = "en-US";
+        speech.rate = 1;
+        speech.pitch = 1;
+
+        window.speechSynthesis.speak(speech);
+    }
+
+
+    // Send recognized command to Flask
+    function sendCommand(command) {
+
+        document.getElementById("status").innerText =
+            "You said: " + command;
+
+        fetch("/command", {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                command: command
+            })
+        })
+
+        .then(response => response.json())
+
+        .then(data => {
 
             document.getElementById("status").innerText =
-                "Starting...";
+                "MAX: " + data.message;
 
-            fetch("/start-assistant")
-                .then(response => response.json())
-                .then(data => {
-
-                    document.getElementById("status").innerText =
-                        data.message;
-
-                })
-                .catch(() => {
-
-                    document.getElementById("status").innerText =
-                        "Unable to start MAX.";
-
-                });
-        }
+            speak(data.message);
 
 
-        function stopAssistant() {
+            // Open website if MAX returns an action
+            if (data.action === "open_url" && data.url) {
+                window.open(data.url, "_blank");
+            }
+
+        })
+
+        .catch(error => {
+
+            console.error(error);
 
             document.getElementById("status").innerText =
-                "Stopping...";
+                "Unable to communicate with MAX.";
 
-            fetch("/stop-assistant")
-                .then(response => response.json())
-                .then(data => {
+        });
+    }
 
-                    document.getElementById("status").innerText =
-                        data.message;
 
-                })
-                .catch(() => {
+    // Start browser microphone
+    function startAssistant() {
 
-                    document.getElementById("status").innerText =
-                        "Unable to stop MAX.";
+        const SpeechRecognition =
+            window.SpeechRecognition ||
+            window.webkitSpeechRecognition;
 
-                });
+        if (!SpeechRecognition) {
+
+            document.getElementById("status").innerText =
+                "Speech recognition is not supported in this browser.";
+
+            return;
         }
 
 
-        function checkStatus() {
+        recognition = new SpeechRecognition();
 
-            fetch("/status")
-                .then(response => response.json())
-                .then(data => {
+        recognition.lang = "en-IN";
 
-                    if (data.running) {
+        recognition.continuous = true;
 
-                        document.getElementById("status").innerText =
-                            "MAX is running";
+        recognition.interimResults = false;
 
-                    } else {
+        assistantRunning = true;
 
-                        document.getElementById("status").innerText =
-                            "MAX is stopped";
 
-                    }
+        recognition.onstart = function() {
 
-                });
+            document.getElementById("status").innerText =
+                "MAX is listening...";
+
+        };
+
+
+        recognition.onresult = function(event) {
+
+            const lastResult =
+                event.results[event.results.length - 1];
+
+            const command =
+                lastResult[0].transcript.trim();
+
+            console.log("Recognized:", command);
+
+            sendCommand(command);
+        };
+
+
+        recognition.onerror = function(event) {
+
+            console.error(
+                "Speech recognition error:",
+                event.error
+            );
+
+            if (event.error !== "no-speech") {
+
+                document.getElementById("status").innerText =
+                    "Microphone error: " + event.error;
+            }
+        };
+
+
+        recognition.onend = function() {
+
+            // Restart listening unless user pressed Stop
+            if (assistantRunning) {
+
+                try {
+                    recognition.start();
+                }
+                catch (error) {
+                    console.log(error);
+                }
+
+            } else {
+
+                document.getElementById("status").innerText =
+                    "MAX is stopped";
+            }
+        };
+
+
+        try {
+
+            recognition.start();
+
+        }
+        catch (error) {
+
+            console.log(error);
+
+        }
+    }
+
+
+    // Stop browser microphone
+    function stopAssistant() {
+
+        assistantRunning = false;
+
+        if (recognition) {
+
+            recognition.stop();
+
+            recognition = null;
         }
 
+        window.speechSynthesis.cancel();
 
-        // Check MAX status every 3 seconds
-        setInterval(checkStatus, 10000);
+        document.getElementById("status").innerText =
+            "MAX is stopped";
+    }
 
-        // Check immediately when page opens
-        checkStatus();
 
-    </script>
+    // Check Flask server
+    function checkStatus() {
+
+        fetch("/status")
+
+            .then(response => response.json())
+
+            .then(data => {
+
+                if (!assistantRunning) {
+
+                    document.getElementById("status").innerText =
+                        "MAX is ready";
+                }
+
+            })
+
+            .catch(() => {
+
+                document.getElementById("status").innerText =
+                    "MAX server unavailable";
+
+            });
+    }
+
+
+    checkStatus();
+
+</script>
 
 </body>
 
