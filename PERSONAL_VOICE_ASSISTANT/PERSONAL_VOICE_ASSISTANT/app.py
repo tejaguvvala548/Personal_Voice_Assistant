@@ -1,82 +1,61 @@
-from flask import Flask, render_template, jsonify
-import subprocess
-import sys
-import os
+from flask import Flask, render_template, request, jsonify
+from web_commands import process_command
 
 app = Flask(__name__)
 
-assistant_process = None
 
-
+# Home page
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-@app.route("/start-assistant")
-def start_assistant():
-    global assistant_process
+# Receive command from browser
+@app.route("/command", methods=["POST"])
+def command():
+    try:
+        data = request.get_json()
 
-    if assistant_process is not None and assistant_process.poll() is None:
-        return jsonify({
-            "message": "MAX Voice Assistant is already running.",
-            "running": True
-        })
+        if not data:
+            return jsonify({
+                "message": "No command received."
+            })
 
-    assistant_process = subprocess.Popen(
-        [sys.executable, "assistant.py"],
-        cwd=os.path.dirname(os.path.abspath(__file__))
-    )
+        user_command = data.get("command", "").strip()
 
-    return jsonify({
-        "message": "MAX Voice Assistant started.",
-        "running": True
-    })
+        if not user_command:
+            return jsonify({
+                "message": "Please say or enter a command."
+            })
 
+        # Send command to web_commands.py
+        result = process_command(user_command)
 
-@app.route("/stop-assistant")
-def stop_assistant():
-    global assistant_process
-
-    if assistant_process is not None and assistant_process.poll() is None:
-
-        pid = assistant_process.pid
-
-        # Force-stop MAX and its child processes on Windows
-        subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-
-        assistant_process = None
+        # Some commands return extra actions,
+        # such as opening Google or YouTube
+        if isinstance(result, dict):
+            return jsonify(result)
 
         return jsonify({
-            "message": "MAX Voice Assistant stopped.",
-            "running": False
+            "message": result
         })
 
-    assistant_process = None
+    except Exception as error:
+        print("Command error:", error)
 
-    return jsonify({
-        "message": "MAX Voice Assistant is not running.",
-        "running": False
-    })
+        return jsonify({
+            "message": "Sorry, something went wrong while processing your command."
+        }), 500
 
 
+# Used to check whether the web server is working
 @app.route("/status")
 def status():
-    global assistant_process
-
-    running = (
-        assistant_process is not None
-        and assistant_process.poll() is None
-    )
-
     return jsonify({
-        "running": running
+        "online": True,
+        "message": "MAX web assistant is online."
     })
 
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)
