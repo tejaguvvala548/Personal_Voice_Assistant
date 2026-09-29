@@ -147,23 +147,75 @@
 
     let recognition = null;
     let assistantRunning = false;
+    let isSpeaking = false;
+
+    function restartListening() {
+
+    if (!assistantRunning || isSpeaking || !recognition) {
+        return;
+    }
+
+    setTimeout(function() {
+
+        if (assistantRunning && !isSpeaking && recognition) {
+
+            try {
+                recognition.start();
+            } catch (error) {
+                console.log("Recognition already running.");
+            }
+
+        }
+
+    }, 500);
+}
 
 
     // Speak MAX's response
     function speak(text) {
 
-        if (!text) return;
-
-        window.speechSynthesis.cancel();
-
-        const speech = new SpeechSynthesisUtterance(text);
-
-        speech.lang = "en-US";
-        speech.rate = 1;
-        speech.pitch = 1;
-
-        window.speechSynthesis.speak(speech);
+    if (!text) {
+        restartListening();
+        return;
     }
+
+    isSpeaking = true;
+
+    // Stop microphone while MAX is speaking
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (error) {
+            console.log("Stop recognition error:", error);
+        }
+    }
+
+    window.speechSynthesis.cancel();
+
+    const speech = new SpeechSynthesisUtterance(text);
+
+    speech.lang = "en-US";
+    speech.rate = 1;
+    speech.pitch = 1;
+
+    speech.onend = function() {
+
+        isSpeaking = false;
+
+        document.getElementById("status").innerText =
+            "MAX is listening...";
+
+        restartListening();
+    };
+
+    speech.onerror = function() {
+
+        isSpeaking = false;
+        restartListening();
+    };
+
+    window.speechSynthesis.speak(speech);
+}
 
 
     // Send recognized command to Flask
@@ -188,16 +240,23 @@
 
         .then(data => {
 
-            document.getElementById("status").innerText =
-                "MAX: " + data.message;
+        document.getElementById("status").innerText =
+        "MAX: " + data.message;
 
-            speak(data.message);
+        isSpeaking = true;
+        speak(data.message);
 
 
             // Open website if MAX returns an action
             if (data.action === "open_url" && data.url) {
-                window.open(data.url, "_blank");
-            }
+
+    const newTab = window.open(data.url, "_blank");
+
+    if (!newTab) {
+        document.getElementById("status").innerText =
+            "MAX: Please allow pop-ups to open the website.";
+    }
+}
 
         })
 
@@ -232,7 +291,7 @@
 
         recognition.lang = "en-IN";
 
-        recognition.continuous = true;
+        recognition.continuous = false;
 
         recognition.interimResults = false;
 
@@ -249,16 +308,25 @@
 
         recognition.onresult = function(event) {
 
-            const lastResult =
-                event.results[event.results.length - 1];
+    const lastResult =
+        event.results[event.results.length - 1];
 
-            const command =
-                lastResult[0].transcript.trim();
+    const command =
+        lastResult[0].transcript.trim();
 
-            console.log("Recognized:", command);
+    console.log("Recognized:", command);
 
-            sendCommand(command);
-        };
+    // Stop listening while this command is processed
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (error) {
+            console.log("Recognition stop:", error);
+        }
+    }
+
+    sendCommand(command);
+};
 
 
         recognition.onerror = function(event) {
@@ -278,24 +346,11 @@
 
         recognition.onend = function() {
 
-            // Restart listening unless user pressed Stop
-            if (assistantRunning) {
+    if (assistantRunning && !isSpeaking) {
+        restartListening();
+    }
 
-                try {
-                    recognition.start();
-                }
-                catch (error) {
-                    console.log(error);
-                }
-
-            } else {
-
-                document.getElementById("status").innerText =
-                    "MAX is stopped";
-            }
-        };
-
-
+};
         try {
 
             recognition.start();
