@@ -221,54 +221,73 @@
     // Send recognized command to Flask
     function sendCommand(command) {
 
-        document.getElementById("status").innerText =
-            "You said: " + command;
+    document.getElementById("status").innerText =
+        "You said: " + command;
 
-        fetch("/command", {
-            method: "POST",
+    fetch("/command", {
+        method: "POST",
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+        headers: {
+            "Content-Type": "application/json"
+        },
 
-            body: JSON.stringify({
-                command: command
-            })
+        body: JSON.stringify({
+            command: command
         })
+    })
 
-        .then(response => response.json())
+    .then(response => response.json())
 
-        .then(data => {
+    .then(data => {
 
+        // Get local time from the user's browser/device
+        if (data.action === "local_time") {
+
+            const currentTime = new Date().toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            });
+
+            const message = "The current time is " + currentTime;
+
+            document.getElementById("status").innerText =
+                "MAX: " + message;
+
+            isSpeaking = true;
+            speak(message);
+
+            return;
+        }
+
+        // Normal MAX response
         document.getElementById("status").innerText =
-        "MAX: " + data.message;
+            "MAX: " + data.message;
 
         isSpeaking = true;
         speak(data.message);
 
+        // Open website if MAX returns a URL
+        if (data.action === "open_url" && data.url) {
 
-            // Open website if MAX returns an action
-            if (data.action === "open_url" && data.url) {
+            const newTab = window.open(data.url, "_blank");
 
-    const newTab = window.open(data.url, "_blank");
+            if (!newTab) {
+                document.getElementById("status").innerText =
+                    "MAX: Please allow pop-ups to open the website.";
+            }
+        }
+    })
 
-    if (!newTab) {
+    .catch(error => {
+
+        console.error(error);
+
         document.getElementById("status").innerText =
-            "MAX: Please allow pop-ups to open the website.";
-    }
+            "Unable to communicate with MAX.";
+
+    });
 }
-
-        })
-
-        .catch(error => {
-
-            console.error(error);
-
-            document.getElementById("status").innerText =
-                "Unable to communicate with MAX.";
-
-        });
-    }
 
 
     // Start browser microphone
