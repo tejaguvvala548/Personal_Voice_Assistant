@@ -133,8 +133,9 @@ def process_command(command):
         return "I am working fine."
 
     elif "time" in command:
-        current_time = datetime.datetime.now().strftime("%I:%M %p")
-        return "The current time is " + current_time
+        return {
+        "action": "local_time"
+    }
 
     elif "date" in command:
         current_date = datetime.datetime.now().strftime("%d %B %Y")
