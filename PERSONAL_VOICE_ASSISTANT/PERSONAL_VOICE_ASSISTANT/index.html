@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MAX Voice Assistant</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: white;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 650px;
+            background: #1f2937;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            font-size: 40px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 30px;
+        }
+
+        .status-box {
+            background: #111827;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+
+        #status {
+            font-weight: bold;
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        button {
+            border: none;
+            padding: 13px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .start-button {
+            background: #22c55e;
+            color: white;
+        }
+
+        .stop-button {
+            background: #ef4444;
+            color: white;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        .commands {
+            margin-top: 35px;
+            text-align: left;
+            background: #111827;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .commands h3 {
+            margin-top: 0;
+        }
+
+        .commands p {
+            color: #d1d5db;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>MAX</h1>
+
+        <p class="subtitle">
+            Personal Voice Assistant
+        </p>
+
+        <div class="status-box">
+            Status:
+            <span id="status">Checking...</span>
+        </div>
+
+        <div class="buttons">
+
+            <button
+                class="start-button"
+                onclick="startAssistant()">
+                Start Assistant
+            </button>
+
+            <button
+                class="stop-button"
+                onclick="stopAssistant()">
+                Stop Assistant
+            </button>
+
+        </div>
+
+        <div class="commands">
+
+            <h3>Try saying</h3>
+
+            <p>🎙 MAX → What is the time?</p>
+            <p>🌤 MAX → Weather in Hyderabad</p>
+            <p>🎵 MAX → Play Believer</p>
+            <p>😂 MAX → Tell me a joke</p>
+            <p>🔎 MAX → Search Google for Python tutorials</p>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+    let recognition = null;
+    let assistantRunning = false;
+    let isSpeaking = false;
+
+    function restartListening() {
+
+    if (!assistantRunning || isSpeaking || !recognition) {
+        return;
+    }
+
+    setTimeout(function() {
+
+        if (assistantRunning && !isSpeaking && recognition) {
+
+            try {
+                recognition.start();
+            } catch (error) {
+                console.log("Recognition already running.");
+            }
+
+        }
+
+    }, 500);
+}
+
+
+    // Speak MAX's response
+    function speak(text) {
+
+    if (!text) {
+        restartListening();
+        return;
+    }
+
+    isSpeaking = true;
+
+    // Stop microphone while MAX is speaking
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (error) {
+            console.log("Stop recognition error:", error);
+        }
+    }
+
+    window.speechSynthesis.cancel();
+
+    const speech = new SpeechSynthesisUtterance(text);
+
+    speech.lang = "en-US";
+    speech.rate = 1;
+    speech.pitch = 1;
+
+    speech.onend = function() {
+
+        isSpeaking = false;
+
+        document.getElementById("status").innerText =
+            "MAX is listening...";
+
+        restartListening();
+    };
+
+    speech.onerror = function() {
+
+        isSpeaking = false;
+        restartListening();
+    };
+
+    window.speechSynthesis.speak(speech);
+}
+
+
+    // Send recognized command to Flask
+   function sendCommand(command) {
+
+    document.getElementById("status").innerText =
+        "You said: " + command;
+
+    fetch("/command", {
+        method: "POST",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+            command: command
+        })
+    })
+
+    .then(response => response.json())
+
+    .then(data => {
+
+        // Get local time from the user's device
+        if (data.action === "local_time") {
+
+            const currentTime = new Date().toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            });
+
+            const message = "The current time is " + currentTime;
+
+            document.getElementById("status").innerText =
+                "MAX: " + message;
+
+            isSpeaking = true;
+            speak(message);
+
+            return;
+        }
+
+        // Normal MAX response
+        document.getElementById("status").innerText =
+            "MAX: " + data.message;
+
+        isSpeaking = true;
+        speak(data.message);
+
+        // Open website if MAX returns a URL
+        if (data.action === "open_url" && data.url) {
+
+            const newTab = window.open(data.url, "_blank");
+
+            if (!newTab) {
+                document.getElementById("status").innerText =
+                    "MAX: Please allow pop-ups to open the website.";
+            }
+        }
+    })
+
+    .catch(error => {
+
+        console.error(error);
+
+        document.getElementById("status").innerText =
+            "Unable to communicate with MAX.";
+
+    });
+}
+
+    // Start browser microphone
+    function startAssistant() {
+
+        const SpeechRecognition =
+            window.SpeechRecognition ||
+            window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+
+            document.getElementById("status").innerText =
+                "Speech recognition is not supported in this browser.";
+
+            return;
+        }
+
+
+        recognition = new SpeechRecognition();
+
+        recognition.lang = "en-IN";
+
+        recognition.continuous = false;
+
+        recognition.interimResults = false;
+
+        assistantRunning = true;
+
+
+        recognition.onstart = function() {
+
+            document.getElementById("status").innerText =
+                "MAX is listening...";
+
+        };
+
+
+        recognition.onresult = function(event) {
+
+    const lastResult =
+        event.results[event.results.length - 1];
+
+    const command =
+        lastResult[0].transcript.trim();
+
+    console.log("Recognized:", command);
+
+    // Stop listening while this command is processed
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (error) {
+            console.log("Recognition stop:", error);
+        }
+    }
+
+    sendCommand(command);
+};
+
+
+        recognition.onerror = function(event) {
+
+            console.error(
+                "Speech recognition error:",
+                event.error
+            );
+
+            if (event.error !== "no-speech") {
+
+                document.getElementById("status").innerText =
+                    "Microphone error: " + event.error;
+            }
+        };
+
+
+        recognition.onend = function() {
+
+    if (assistantRunning && !isSpeaking) {
+        restartListening();
+    }
+
+};
+        try {
+
+            recognition.start();
+
+        }
+        catch (error) {
+
+            console.log(error);
+
+        }
+    }
+
+
+    // Stop browser microphone
+    function stopAssistant() {
+
+        assistantRunning = false;
+
+        if (recognition) {
+
+            recognition.stop();
+
+            recognition = null;
+        }
+
+        window.speechSynthesis.cancel();
+
+        document.getElementById("status").innerText =
+            "MAX is stopped";
+    }
+
+
+    // Check Flask server
+    function checkStatus() {
+
+        fetch("/status")
+
+            .then(response => response.json())
+
+            .then(data => {
+
+                if (!assistantRunning) {
+
+                    document.getElementById("status").innerText =
+                        "MAX is ready";
+                }
+
+            })
+
+            .catch(() => {
+
+                document.getElementById("status").innerText =
+                    "MAX server unavailable";
+
+            });
+    }
+
+
+    checkStatus();
+
+</script>
+
+</body>
+
+</html>
